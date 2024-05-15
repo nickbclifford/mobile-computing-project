@@ -9,6 +9,7 @@ class ReadWavsDataset(IterableDataset):
     files: list[str]
 
     def __init__(self, directory: str):
+        super().__init__()
         assert os.path.isdir(directory), "ReadWavsDataset requires a directory as input"
         self.files = glob(os.path.join(directory, '*.wav'))
 
