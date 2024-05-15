@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchaudio.functional import resample
 import math
 
-from demucs import BLSTM, Demucs
+from .demucs import BLSTM, Demucs
 
 class QuantizedDemucs(nn.Module):
     def __init__(self,
