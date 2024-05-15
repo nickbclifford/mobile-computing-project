@@ -1,9 +1,10 @@
-from torch.utils.data import IterableDataset, get_worker_info
+from torch.utils.data import IterableDataset, get_worker_info, StackDataset
 import torchaudio
 
 from glob import glob
 import math
 import os.path
+
 
 class ReadWavsDataset(IterableDataset):
     files: list[str]
@@ -11,12 +12,12 @@ class ReadWavsDataset(IterableDataset):
     def __init__(self, directory: str):
         super().__init__()
         assert os.path.isdir(directory), "ReadWavsDataset requires a directory as input"
-        self.files = glob(os.path.join(directory, '*.wav'))
+        self.files = glob(os.path.join(directory, "*.wav"))
 
     def __iter__(self):
         start = 0
         end = len(self.files)
-        
+
         # worker splitting code sourced from PyTorch docs
         if worker := get_worker_info():  # in a worker process
             # split workload
@@ -29,4 +30,20 @@ class ReadWavsDataset(IterableDataset):
             iter_end = end
 
         return iter(map(torchaudio.load, self.files[iter_start:iter_end]))
-            
+
+
+def valentini_set(name: str):
+    return ReadWavsDataset(os.path.join(os.path.dirname(__file__), name))
+
+
+def testset():
+    return StackDataset(
+        valentini_set("clean_testset_wav"), valentini_set("noisy_testset_wav")
+    )
+
+
+def trainset():
+    return StackDataset(
+        valentini_set("clean_trainset_28spk_wav"),
+        valentini_set("noisy_trainset_28spk_wav"),
+    )
