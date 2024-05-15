@@ -170,7 +170,7 @@ def load_model_state_to_quantized(src: Demucs, dst: QuantizedDemucs) -> None:
         for x, y in zip(dst_conv, src_conv):
             x.load_state_dict(y.state_dict())
 
-    src.lstm.load_state_dict(dst.lstm.state_dict())
+    dst.lstm.load_state_dict(src.lstm.state_dict())
 
 def prepare_and_convert(model: QuantizedDemucs, 
                         data: DataLoader | torch.Tensor, 

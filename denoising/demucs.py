@@ -194,7 +194,7 @@ def load_pretrained_demucs(name: str):
         kwargs = dict(hidden=64)
     else:
         kwargs = dict(hidden=64, causal=False, stride=2, resample=2)
-    state = hub.load_state_dict_from_url(PRETRAINED_URLS[name])
+    state= hub.load_state_dict_from_url(PRETRAINED_URLS[name], map_location='cpu')
     model = Demucs(**kwargs, sample_rate = 16000)
     model.load_state_dict(state)
 
