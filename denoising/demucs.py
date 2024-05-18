@@ -2,11 +2,11 @@
 DEMUCS model taken from facebookresearch/denoiser;; We need the exact class
 definition so we can easily load in pretrained models, if needed.
 """
-from torch import hub
-from torch import nn
+from torch import hub, nn, Tensor
 from torch.nn import functional as F
 from torchaudio.functional import resample
 import math
+from typing import Optional, Tuple
 
 # BEGIN (mostly) UNORIGINAL CODE
 
@@ -16,9 +16,9 @@ class BLSTM(nn.Module):
         self.lstm = nn.LSTM(bidirectional=bi, num_layers=layers, hidden_size=dim, input_size=dim)
         self.linear = nn.Linear(2 * dim, dim) if bi else None
 
-    def forward(self, x, hidden=None):
+    def forward(self, x: Tensor, hidden: Optional[Tuple[Tensor, Tensor]] = None):
         x, hidden = self.lstm(x, hidden)
-        if self.linear:
+        if self.linear is not None:
             x = self.linear(x)
         return x, hidden
 

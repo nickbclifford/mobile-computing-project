@@ -96,7 +96,7 @@ class QuantizedDemucs(nn.Module):
         # if rescale:
         #     rescale_module(self, reference=rescale)
 
-    def valid_length(self, length):
+    def valid_length(self, length: int):
         """
         Return the nearest valid length to use with the model so that
         there is no time steps left over in a convolutions, e.g. for all
@@ -127,7 +127,7 @@ class QuantizedDemucs(nn.Module):
             std = mono.std(dim=-1, keepdim=True)
             mix = mix / (self.floor + std)
         else:
-            std = 1
+            std = torch.tensor([1])
         length = mix.shape[-1]
         x = mix
         x = F.pad(x, (0, self.valid_length(length) - length))
