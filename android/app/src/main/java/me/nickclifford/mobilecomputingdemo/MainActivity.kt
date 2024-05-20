@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -101,7 +101,7 @@ fun BottomNav(navController: NavController) {
             onClick = { navController.goTo("record") },
             icon = {
                 Icon(
-                    Icons.Filled.Call, contentDescription = "Record"
+                    Icons.Filled.GraphicEq, contentDescription = "Record"
                 )
             },
             selected = currentDestination.isRouteSelected("record")
