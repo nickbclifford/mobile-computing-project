@@ -3,15 +3,18 @@ DEMUCS model taken from facebookresearch/denoiser;; We need the exact class
 definition so we can easily load in pretrained models, if needed.
 """
 import torch
-from torch.quantization import QuantStub, DeQuantStub, get_default_qat_qconfig 
+from torch.quantization import QuantStub, DeQuantStub, get_default_qat_qconfig, quantize_dynamic
 from torch import hub
 from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchaudio.functional import resample
+
+from typing import Dict
 import math
 
-from .demucs import BLSTM, Demucs
+from demucs import BLSTM, Demucs, load_pretrained_demucs
+
 
 class QuantizedDemucs(nn.Module):
     def __init__(self,
@@ -153,6 +156,32 @@ class QuantizedDemucs(nn.Module):
           x = resample(x, self.sample_rate *4, self.sample_rate)
         x = x[..., :length]
         return std * x
+    @classmethod
+    def from_facebook_pretrained(cls, name: str, quantize_opts: Dict[str, bool],
+                                 dynamic: None | torch.dtype = None,
+                                 sample_audio: torch.Tensor | DataLoader | None = None):
+        pretrained = load_pretrained_demucs(name)
+        hidden = 48 if name == 'dns48' else 64
+        quantized = cls(hidden=hidden,
+                                              quantize_opts=quantize_opts
+                                          ) 
+        load_model_state_to_quantized(pretrained, quantized)
+
+        static = any(quantize_opts.values())
+        
+        if static and sample_audio is not None:
+            quantized = prepare_and_convert(quantized, sample_audio)
+        else:
+            if static: 
+                raise ValueError('static quantization passed but no sample audio')
+
+        if dynamic is not None:
+            quantized = quantize_dynamic(quantized,
+                                         qconfig_spec = {nn.LSTM},
+                                         dtype = dynamic
+                                 )
+        
+        return quantized
 
 def load_model_state_to_quantized(src: Demucs, dst: QuantizedDemucs) -> None:
     # load encoder weights
