@@ -18,58 +18,35 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-
-val buttonSize = 100.dp
-val iconSize = 60.dp
 
 @Composable
-fun RecordPage() {
-    var recording by remember { mutableStateOf(false) }
-    var millisElapsed by remember { mutableIntStateOf(0) }
-
-    val scope = rememberCoroutineScope()
-
-    DisposableEffect(recording) {
-        val timer = scope.launch {
-            while (true) {
-                delay(10)
-                millisElapsed += 10
-            }
-        }
-
-        // TODO: actually collect the audio
-
-        onDispose {
-            timer.cancel()
-            millisElapsed = 0
-        }
-    }
+fun RecordPage(
+    viewModel: DenoiserViewModel,
+    tryStartRecording: () -> Unit,
+    onRecordComplete: () -> Unit
+) {
+    val isRecording by viewModel.isRecording.collectAsState()
+    val millisElapsed by viewModel.elapsedTime.collectAsState()
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize()
     ) {
-        if (recording) {
+        if (isRecording) {
             Column(
                 modifier = Modifier.height(150.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 OutlinedIconButton(
                     onClick = {
-                        recording = false
+                        viewModel.stopRecording()
+                        onRecordComplete()
                     },
                     modifier = Modifier.size(buttonSize),
                     border = BorderStroke(4.dp, MaterialTheme.colorScheme.primary),
@@ -87,13 +64,13 @@ fun RecordPage() {
                     "%02d:%02d.%d".format(
                         seconds / 60,
                         seconds % 60,
-                        (millisElapsed % 100) / 10
+                        (millisElapsed % 1000) / 100
                     )
                 )
             }
         } else {
             FilledIconButton(
-                onClick = { recording = true },
+                onClick = tryStartRecording,
                 modifier = Modifier.size(buttonSize),
                 colors = filledIconButtonColors()
             ) {

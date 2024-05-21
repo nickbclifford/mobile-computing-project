@@ -23,7 +23,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -43,6 +46,8 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+
+        jniLibs.pickFirsts.add("lib/*/libc++_shared.so")
     }
 }
 
@@ -64,7 +69,8 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
-    implementation("androidx.compose.material:material-icons-extended:1.6.7")
-
-    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation(libs.androidx.material.icons)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.ffmpegkit.audio)
+    implementation(libs.pytorch.android)
 }

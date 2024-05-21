@@ -9,4 +9,4 @@ quantized_demucs.load_model_state_to_quantized(pretrained, quantized)
 
 as_script = torch.jit.script(quantized)
 optimized = optimize_for_mobile(as_script)
-optimized._save_for_lite_interpreter("demucs.ptl")
+optimized._save_for_lite_interpreter("android/app/src/main/assets/demucs.ptl")
