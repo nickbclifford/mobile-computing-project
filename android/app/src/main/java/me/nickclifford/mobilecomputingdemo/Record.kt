@@ -67,7 +67,7 @@ fun RecordPage(
                     "%02d:%02d.%d".format(
                         seconds / 60,
                         seconds % 60,
-                        (millisElapsed % 100) / 10
+                        (millisElapsed % 1000) / 100
                     )
                 )
             }

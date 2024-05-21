@@ -1,5 +1,6 @@
 package me.nickclifford.mobilecomputingdemo
 
+import android.util.Log
 import java.io.File
 import java.io.FileInputStream
 import java.nio.ByteBuffer
@@ -32,10 +33,17 @@ fun parseWavFile(file: File): FloatArray {
     }
 
     // Get the sample rate, number of channels, and sample data size
-    val sampleRate = header.decodeInt(24)
     val numChannels = header.decodeShort(22).toInt()
+    val sampleRate = header.decodeInt(24)
     val bitsPerSample = header.decodeShort(34).toInt()
     val dataSize = header.decodeInt(40)
+
+    val numSamples = dataSize / (numChannels * (bitsPerSample / 8))
+
+    Log.d(
+        "AudioUtils/parse",
+        "$numChannels channels of $numSamples $bitsPerSample-bit samples @ $sampleRate Hz"
+    )
 
     // Ensure the file is mono and 16-bit
     if (numChannels != 1 || bitsPerSample != 16) {
@@ -63,9 +71,6 @@ fun parseWavFile(file: File): FloatArray {
 
 fun addWavHeader(
     pcmData: ShortArray,
-    sampleRate: Int = 16000,
-    bitsPerSample: Int = 16,
-    numChannels: Int = 1
 ): ByteArray {
     val byteData = pcmData.flatMap {
         val it = it.toInt()
@@ -74,6 +79,10 @@ fun addWavHeader(
             (it.shr(8) and 0xFF).toByte()
         )
     }.toByteArray()
+
+    val sampleRate = 16000
+    val bitsPerSample = 16
+    val numChannels = 1
 
     val dataSize = byteData.size
     val byteRate = sampleRate * numChannels * bitsPerSample / 8
@@ -106,29 +115,31 @@ fun addWavHeader(
     header[18] = 0
     header[19] = 0
     header[20] = 1.toByte() // audioFormat (PCM = 1)
-    header[21] = numChannels.toByte()
-    header[22] = (sampleRate and 0xFF).toByte()
-    header[23] = (sampleRate shr 8).toByte()
-    header[24] = (sampleRate shr 16).toByte()
-    header[25] = (sampleRate shr 24).toByte()
-    header[26] = (byteRate and 0xFF).toByte()
-    header[27] = (byteRate shr 8).toByte()
-    header[28] = (byteRate shr 16).toByte()
-    header[29] = (byteRate shr 24).toByte()
-    header[30] = blockAlign.toByte()
-    header[31] = 0
-    header[32] = bitsPerSample.toByte()
+    header[21] = 0
+    header[22] = numChannels.toByte()
+    header[23] = 0
+    header[24] = (sampleRate and 0xFF).toByte()
+    header[25] = (sampleRate shr 8).toByte()
+    header[26] = (sampleRate shr 16).toByte()
+    header[27] = (sampleRate shr 24).toByte()
+    header[28] = (byteRate and 0xFF).toByte()
+    header[29] = (byteRate shr 8).toByte()
+    header[30] = (byteRate shr 16).toByte()
+    header[31] = (byteRate shr 24).toByte()
+    header[32] = blockAlign.toByte()
     header[33] = 0
+    header[34] = bitsPerSample.toByte()
+    header[35] = 0
 
     // DATA subchunk
-    header[34] = 'd'.code.toByte()
-    header[35] = 'a'.code.toByte()
-    header[36] = 't'.code.toByte()
+    header[36] = 'd'.code.toByte()
     header[37] = 'a'.code.toByte()
-    header[38] = (dataSize and 0xFF).toByte()
-    header[39] = (dataSize shr 8).toByte()
-    header[40] = (dataSize shr 16).toByte()
-    header[41] = (dataSize shr 24).toByte()
+    header[38] = 't'.code.toByte()
+    header[39] = 'a'.code.toByte()
+    header[40] = (dataSize and 0xFF).toByte()
+    header[41] = (dataSize shr 8).toByte()
+    header[42] = (dataSize shr 16).toByte()
+    header[43] = (dataSize shr 24).toByte()
 
     return header + byteData
 }

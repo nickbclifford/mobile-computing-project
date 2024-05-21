@@ -10,14 +10,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.arthenica.ffmpegkit.FFmpegKit
 import com.arthenica.ffmpegkit.ReturnCode
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.pytorch.IValue
 import org.pytorch.Module
 import org.pytorch.Tensor
@@ -70,11 +68,12 @@ class DenoiserViewModel : ViewModel() {
     private fun startTimer() {
         timer = launch {
             while (true) {
-                delay(10)
-                _elapsedTime.update { it + 10 }
+                delay(50)
+                _elapsedTime.update { it + 50 }
             }
         }
     }
+
     private fun stopTimer() {
         launch { _elapsedTime.emit(0) }
         timer?.cancel()
@@ -83,7 +82,7 @@ class DenoiserViewModel : ViewModel() {
     fun startRecording() {
         startTimer()
 
-        tempfile = File.createTempFile("recording", "amr", filesDir)
+        tempfile = File.createTempFile("recording", ".amr", filesDir)
         val recorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.AMR_NB)
@@ -118,7 +117,8 @@ class DenoiserViewModel : ViewModel() {
             val outputPath =
                 filesDir.path + File.separator + tempfile?.nameWithoutExtension + ".wav"
 
-            val session = FFmpegKit.execute("-i ${tempfile?.path} -ar 16000 $outputPath")
+            val session =
+                FFmpegKit.execute("-i ${tempfile?.path} -bitexact -acodec pcm_s16le -ac 1 -ar 16000 $outputPath")
 
             if (ReturnCode.isSuccess(session.returnCode)) {
                 denoise(File(outputPath))
@@ -141,11 +141,21 @@ class DenoiserViewModel : ViewModel() {
         Log.i(LOG_TAG, "Beginning denoising of ${modelInput.name}")
 
         val samples = parseWavFile(modelInput)
+
+        Log.d(
+            LOG_TAG,
+            "input: ${samples.size} samples @ 16 kHz = ${samples.size / 16000f} seconds"
+        )
+
         val inputTensor = Tensor.fromBlob(samples, longArrayOf(1, samples.size.toLong()))
 
         val outputTensor = torchModel.forward(IValue.from(inputTensor)).toTensor()
         val outputSamples = outputTensor.dataAsFloatArray
 
+        Log.d(
+            LOG_TAG,
+            "output: ${outputSamples.size} samples @ 16 kHz = ${outputSamples.size / 16000f} seconds"
+        )
         data = buildWavData(outputSamples)
 
         launch { _denoisedReady.emit(true) }
@@ -156,8 +166,6 @@ class DenoiserViewModel : ViewModel() {
         startTimer()
 
         track.play()
-
-        // TODO: this does not seem to be working
 
         val chunkSize = bufferSize
         var offset = 0
