@@ -1,11 +1,8 @@
 package me.nickclifford.mobilecomputingdemo
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -27,54 +24,61 @@ import androidx.compose.ui.unit.dp
 fun ResultsPage(viewModel: DenoiserViewModel) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val millisElapsed by viewModel.elapsedTime.collectAsState()
+    val inferenceTime by viewModel.inferenceTime.collectAsState()
 
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize()
     ) {
-        if (isPlaying) {
-            Column(
-                modifier = Modifier.height(150.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                OutlinedIconButton(
+        ColumnCenterLayout(if (isPlaying) 320.dp else 240.dp) {
+            ColumnCenterLayout(80.dp) {
+                Text("Denoising complete!", style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    "Inference time: %.2f s".format(inferenceTime / 1000f),
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            }
+
+            if (isPlaying) {
+                ColumnCenterLayout(150.dp) {
+                    OutlinedIconButton(
+                        onClick = {
+                            viewModel.stopPlaying()
+                        },
+                        modifier = Modifier.size(buttonSize),
+                        border = BorderStroke(4.dp, MaterialTheme.colorScheme.primary),
+                        colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(
+                            Icons.Filled.Stop,
+                            contentDescription = "Stop Playing",
+                            modifier = Modifier.size(iconSize)
+                        )
+                    }
+
+                    val seconds = millisElapsed / 1000
+                    Text(
+                        "%02d:%02d.%d".format(
+                            seconds / 60,
+                            seconds % 60,
+                            (millisElapsed % 1000) / 100
+                        )
+                    )
+                }
+            } else {
+                FilledIconButton(
                     onClick = {
-                        viewModel.stopPlaying()
+                        viewModel.startPlaying()
                     },
                     modifier = Modifier.size(buttonSize),
-                    border = BorderStroke(4.dp, MaterialTheme.colorScheme.primary),
-                    colors = IconButtonDefaults.outlinedIconButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    colors = IconButtonDefaults.filledIconButtonColors()
                 ) {
                     Icon(
-                        Icons.Filled.Stop,
-                        contentDescription = "Stop Playing",
+                        Icons.Filled.PlayArrow,
+                        contentDescription = "Play",
                         modifier = Modifier.size(iconSize)
                     )
                 }
-
-                val seconds = millisElapsed / 1000
-                Text(
-                    "%02d:%02d.%d".format(
-                        seconds / 60,
-                        seconds % 60,
-                        (millisElapsed % 1000) / 100
-                    )
-                )
-            }
-        } else {
-            FilledIconButton(
-                onClick = {
-                    viewModel.startPlaying()
-                },
-                modifier = Modifier.size(buttonSize),
-                colors = IconButtonDefaults.filledIconButtonColors()
-            ) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = "Play",
-                    modifier = Modifier.size(iconSize)
-                )
             }
         }
     }

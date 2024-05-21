@@ -22,6 +22,7 @@ import org.pytorch.Tensor
 import java.io.File
 import java.io.IOException
 import kotlin.concurrent.thread
+import kotlin.time.measureTime
 
 private const val LOG_TAG = "DenoiserViewModel"
 
@@ -30,7 +31,7 @@ fun ViewModel.launch(block: suspend () -> Unit): Job {
 }
 
 class DenoiserViewModel : ViewModel() {
-    private val _elapsedTime = MutableStateFlow(0)
+    private val _elapsedTime = MutableStateFlow(0L)
     val elapsedTime = _elapsedTime.asStateFlow()
 
     private val _isRecording = MutableStateFlow(false)
@@ -42,6 +43,9 @@ class DenoiserViewModel : ViewModel() {
     private val _denoisedReady = MutableStateFlow(false)
     val denoisedReady = _denoisedReady.asStateFlow()
 
+    private val _inferenceTime = MutableStateFlow(0L)
+    val inferenceTime = _inferenceTime.asStateFlow()
+
     private var timer: Job? = null
     private var tempfile: File? = null
     private var recorder: MediaRecorder? = null
@@ -52,15 +56,7 @@ class DenoiserViewModel : ViewModel() {
         AudioFormat.CHANNEL_OUT_MONO,
         AudioFormat.ENCODING_PCM_16BIT
     )
-    private var track = AudioTrack(
-        AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
-        AudioFormat.Builder().setSampleRate(16000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-            .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build(),
-        bufferSize,
-        AudioTrack.MODE_STREAM,
-        AudioManager.AUDIO_SESSION_ID_GENERATE
-    )
+    private var track: AudioTrack? = null
 
     lateinit var filesDir: File
     lateinit var torchModel: Module
@@ -80,7 +76,7 @@ class DenoiserViewModel : ViewModel() {
     }
 
     fun startRecording() {
-        startTimer()
+        launch { _denoisedReady.emit(false) }
 
         tempfile = File.createTempFile("recording", ".amr", filesDir)
         val recorder = MediaRecorder().apply {
@@ -97,11 +93,11 @@ class DenoiserViewModel : ViewModel() {
 
         launch { _isRecording.emit(true) }
         recorder.start()
+        startTimer()
     }
 
     fun stopRecording() {
         stopTimer()
-
         recorder?.apply {
             stop()
             release()
@@ -149,7 +145,11 @@ class DenoiserViewModel : ViewModel() {
 
         val inputTensor = Tensor.fromBlob(samples, longArrayOf(1, samples.size.toLong()))
 
-        val outputTensor = torchModel.forward(IValue.from(inputTensor)).toTensor()
+        val outputTensor: Tensor
+        val elapsed = measureTime {
+            outputTensor = torchModel.forward(IValue.from(inputTensor)).toTensor()
+        }
+
         val outputSamples = outputTensor.dataAsFloatArray
 
         Log.d(
@@ -158,29 +158,49 @@ class DenoiserViewModel : ViewModel() {
         )
         data = buildWavData(outputSamples)
 
-        launch { _denoisedReady.emit(true) }
+        launch {
+            _inferenceTime.emit(elapsed.inWholeMilliseconds)
+            _denoisedReady.emit(true)
+        }
     }
 
     fun startPlaying() {
+        track = AudioTrack(
+            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
+            AudioFormat.Builder().setSampleRate(16000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build(),
+            bufferSize,
+            AudioTrack.MODE_STREAM,
+            AudioManager.AUDIO_SESSION_ID_GENERATE
+        )
+
         launch { _isPlaying.emit(true) }
+        track?.play()
         startTimer()
 
-        track.play()
+        thread {
+            val chunkSize = bufferSize
+            var offset = 0
 
-        val chunkSize = bufferSize
-        var offset = 0
+            while (offset < data.size) {
+                val size = Math.min(chunkSize, data.size - offset)
+                track?.write(data, offset, size)
+                offset += size
+            }
 
-        while (offset < data.size) {
-            val size = Math.min(chunkSize, data.size - offset)
-            track.write(data, offset, size)
-            offset += size
+            stopPlaying()
         }
     }
 
     fun stopPlaying() {
-        track.stop()
-
         stopTimer()
+        track?.apply {
+            stop()
+            release()
+        }
+        track = null
+
         launch { _isPlaying.emit(false) }
     }
 }

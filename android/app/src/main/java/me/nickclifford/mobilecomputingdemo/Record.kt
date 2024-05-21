@@ -24,9 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-val buttonSize = 100.dp
-val iconSize = 60.dp
-
 @Composable
 fun RecordPage(
     viewModel: DenoiserViewModel,

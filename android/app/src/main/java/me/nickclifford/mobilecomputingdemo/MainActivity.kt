@@ -11,7 +11,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +25,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
         viewModel.filesDir = filesDir
 
         // torch needs a system file, so copy it out of the bundled assets
+        // TODO: should this be cached somewhere? it's probably fine for now
         val modelFile = File.createTempFile("demucs", "ptl", filesDir)
         modelFile.outputStream().use { temp ->
             assets.open("demucs.ptl").use { asset ->
@@ -73,7 +74,7 @@ class MainActivity : ComponentActivity() {
             MobileComputingDemoTheme {
                 Scaffold(
                     topBar = { TopBar() },
-                    bottomBar = { BottomNav(navController) },
+                    bottomBar = { BottomNav(navController, viewModel) },
                     modifier = Modifier.fillMaxSize()
                 ) { pad ->
                     Surface(modifier = Modifier.padding(pad)) {
@@ -156,9 +157,11 @@ fun NavDestination?.isRouteSelected(route: String): Boolean {
 }
 
 @Composable
-fun BottomNav(navController: NavController) {
+fun BottomNav(navController: NavController, viewModel: DenoiserViewModel) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    val denoisedReady by viewModel.denoisedReady.collectAsState()
 
     NavigationBar {
         NavigationBarItem(
@@ -172,16 +175,6 @@ fun BottomNav(navController: NavController) {
             selected = currentDestination.isRouteSelected("record")
         )
         NavigationBarItem(
-            label = { Text("Denoise") },
-            onClick = { navController.goTo("denoise") },
-            icon = {
-                Icon(
-                    Icons.Filled.Build, contentDescription = "Denoise"
-                )
-            },
-            selected = currentDestination.isRouteSelected("denoise")
-        )
-        NavigationBarItem(
             label = { Text("Results") },
             onClick = { navController.goTo("results") },
             icon = {
@@ -189,7 +182,8 @@ fun BottomNav(navController: NavController) {
                     Icons.Filled.CheckCircle, contentDescription = "Results"
                 )
             },
-            selected = currentDestination.isRouteSelected("results")
+            selected = currentDestination.isRouteSelected("results"),
+            enabled = denoisedReady
         )
     }
 }
