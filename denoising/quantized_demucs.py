@@ -149,6 +149,7 @@ class QuantizedDemucs(nn.Module):
             x = encode(x)
             skips.append(x)
         x = x.permute(2, 0, 1)
+
         if self.quantize_opts['lstm']:
             x = self.quant(x)
         x, _ = self.lstm(x)
