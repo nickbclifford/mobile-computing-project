@@ -1,1 +1,1 @@
-import demucs, quantized_demucs
+from . import demucs, quantized_demucs
