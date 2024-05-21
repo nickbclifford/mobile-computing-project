@@ -160,14 +160,20 @@ class QuantizedDemucs(nn.Module):
     def from_facebook_pretrained(cls, name: str, quantize_opts: Dict[str, bool],
                                  dynamic: None | torch.dtype = None,
                                  sample_audio: torch.Tensor | DataLoader | None = None):
+        static = any(quantize_opts.values())
         pretrained = load_pretrained_demucs(name)
+        if not static:
+            if dynamic is None:
+                raise ValueError('no static or dynamic option specified')
+            return quantize_dynamic(pretrained,
+                                    qconfig_spec={nn.LSTM},
+                                    dtype=dynamic)
         hidden = 48 if name == 'dns48' else 64
         quantized = cls(hidden=hidden,
                                               quantize_opts=quantize_opts
                                           ) 
         load_model_state_to_quantized(pretrained, quantized)
 
-        static = any(quantize_opts.values())
         
         if static and sample_audio is not None:
             quantized = prepare_and_convert(quantized, sample_audio)
