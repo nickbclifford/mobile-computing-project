@@ -58,6 +58,9 @@ class QuantizedDemucs(nn.Module):
         self.qconfig = get_default_qat_qconfig('qnnpack')
         self.quantize_opts = quantize_opts
 
+        self.quant = QuantStub(qconfig=self.qconfig)
+        self.dequant = DeQuantStub(qconfig=self.qconfig)
+
         for index in range(depth):
             encode = []
             encode += [
@@ -76,7 +79,8 @@ class QuantizedDemucs(nn.Module):
 
             decode = []
             decode += [
-                nn.Conv1d(hidden, ch_scale * hidden, 1), activation,
+                nn.Conv1d(hidden, ch_scale * hidden, 1), 
+                activation,
                 nn.ConvTranspose1d(hidden, chout, kernel_size, stride),
             ]
             if index > 0:
@@ -96,6 +100,7 @@ class QuantizedDemucs(nn.Module):
             decoder.qconfig = None
         if not self.quantize_opts['lstm']:
             self.lstm.qconfig = None
+
         # if rescale:
         #     rescale_module(self, reference=rescale)
 
@@ -144,7 +149,12 @@ class QuantizedDemucs(nn.Module):
             x = encode(x)
             skips.append(x)
         x = x.permute(2, 0, 1)
+        if self.quantize_opts['lstm']:
+            x = self.quant(x)
         x, _ = self.lstm(x)
+        if self.quantize_opts['lstm']:
+            x = self.dequant(x)
+
         x = x.permute(1, 2, 0)
         for decode in self.decoder:
             skip = skips.pop(-1)
