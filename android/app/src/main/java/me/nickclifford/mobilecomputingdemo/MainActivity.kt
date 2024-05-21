@@ -50,9 +50,11 @@ class MainActivity : ComponentActivity() {
 
         viewModel.filesDir = filesDir
 
+        viewModel.startProfiling()
+
         // torch needs a system file, so copy it out of the bundled assets
         // TODO: should this be cached somewhere? it's probably fine for now
-        val modelFile = File.createTempFile("demucs", "ptl", filesDir)
+        val modelFile = File.createTempFile("demucs", ".ptl", filesDir)
         modelFile.outputStream().use { temp ->
             assets.open("demucs.ptl").use { asset ->
                 asset.copyTo(temp)
@@ -66,6 +68,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 viewModel.denoisedReady.collect { ready ->
                     if (ready) {
+                        viewModel.stopProfiling()
                         navController.goTo("results")
                     }
                 }

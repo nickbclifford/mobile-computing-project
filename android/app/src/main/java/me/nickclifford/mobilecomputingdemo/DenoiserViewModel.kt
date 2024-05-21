@@ -46,6 +46,10 @@ class DenoiserViewModel : ViewModel() {
     private val _inferenceTime = MutableStateFlow(0L)
     val inferenceTime = _inferenceTime.asStateFlow()
 
+    private val memMeasurements = mutableListOf<Measurement>()
+
+    private var profiler: Job? = null
+
     private var timer: Job? = null
     private var tempfile: File? = null
     private var recorder: MediaRecorder? = null
@@ -60,6 +64,8 @@ class DenoiserViewModel : ViewModel() {
 
     lateinit var filesDir: File
     lateinit var torchModel: Module
+
+    lateinit var outputDir: File
 
     private fun startTimer() {
         timer = launch {
@@ -202,5 +208,25 @@ class DenoiserViewModel : ViewModel() {
         track = null
 
         launch { _isPlaying.emit(false) }
+    }
+
+    fun startProfiling() {
+        profiler = launch {
+            while (true) {
+                memMeasurements.add(currentMemUsage())
+                delay(5)
+            }
+        }
+    }
+
+    fun stopProfiling() {
+        profiler?.cancel()
+
+        File(outputDir, "memory.csv").outputStream().use { stream ->
+            stream.write("time,mem_usage\n".toByteArray())
+            for (measurement in memMeasurements) {
+                stream.write("${measurement.time},${measurement.mem}\n".toByteArray())
+            }
+        }
     }
 }
