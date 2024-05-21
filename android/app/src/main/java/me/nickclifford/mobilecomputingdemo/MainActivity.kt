@@ -1,9 +1,13 @@
 package me.nickclifford.mobilecomputingdemo
 
+import android.Manifest.permission.RECORD_AUDIO
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -34,6 +38,8 @@ import androidx.navigation.compose.rememberNavController
 import me.nickclifford.mobilecomputingdemo.ui.theme.MobileComputingDemoTheme
 
 class MainActivity : ComponentActivity() {
+    private val viewModel by viewModels<DenoiserViewModel>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -48,13 +54,48 @@ class MainActivity : ComponentActivity() {
                 ) { pad ->
                     Surface(modifier = Modifier.padding(pad)) {
                         NavHost(navController, startDestination = "record") {
-                            composable("record") { RecordPage() }
+                            composable("record") {
+                                RecordPage(
+                                    viewModel,
+                                    tryStartRecording = this@MainActivity::tryStartRecording,
+                                    onRecordComplete = {
+                                        navController.goTo(
+                                            "denoise"
+                                        )
+                                    })
+                            }
                             composable("denoise") { DenoisePage() }
                             composable("results") { ResultsPage() }
                         }
                     }
                 }
             }
+        }
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startRecording()
+        } else {
+            Toast.makeText(
+                this,
+                "Microphone permission is required for this app.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun tryStartRecording() {
+        if (shouldShowRequestPermissionRationale(RECORD_AUDIO)) {
+            Toast.makeText(
+                this,
+                "Microphone access is required to record audio.",
+                Toast.LENGTH_LONG
+            ).show()
+        } else {
+            requestPermissionLauncher.launch(RECORD_AUDIO)
         }
     }
 }
