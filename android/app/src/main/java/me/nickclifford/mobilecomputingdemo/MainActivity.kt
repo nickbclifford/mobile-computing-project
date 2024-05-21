@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
@@ -36,15 +37,38 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import me.nickclifford.mobilecomputingdemo.ui.theme.MobileComputingDemoTheme
+import org.pytorch.LiteModuleLoader
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<DenoiserViewModel>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         enableEdgeToEdge()
+
+        viewModel.filesDir = filesDir
+
+        // torch needs a system file, so copy it out of the bundled assets
+        val modelFile = File.createTempFile("demucs", "ptl", filesDir)
+        modelFile.outputStream().use { temp ->
+            assets.open("demucs.ptl").use { asset ->
+                asset.copyTo(temp)
+            }
+        }
+        viewModel.torchModel = LiteModuleLoader.load(modelFile.path)
+
         setContent {
             val navController = rememberNavController()
+
+            LaunchedEffect(Unit) {
+                viewModel.denoisedReady.collect { ready ->
+                    if (ready) {
+                        navController.goTo("results")
+                    }
+                }
+            }
 
             MobileComputingDemoTheme {
                 Scaffold(
@@ -65,7 +89,7 @@ class MainActivity : ComponentActivity() {
                                     })
                             }
                             composable("denoise") { DenoisePage() }
-                            composable("results") { ResultsPage() }
+                            composable("results") { ResultsPage(viewModel) }
                         }
                     }
                 }
