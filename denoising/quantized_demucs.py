@@ -13,7 +13,7 @@ from torchaudio.functional import resample
 from typing import Dict
 import math
 
-from demucs import BLSTM, Demucs, load_pretrained_demucs
+from .demucs import BLSTM, Demucs, load_pretrained_demucs
 
 
 class QuantizedDemucs(nn.Module):
