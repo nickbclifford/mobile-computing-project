@@ -26,16 +26,24 @@ fun ResultsPage(viewModel: DenoiserViewModel) {
     val millisElapsed by viewModel.elapsedTime.collectAsState()
     val inferenceTime by viewModel.inferenceTime.collectAsState()
 
+    val inputLength by viewModel.inputLength.collectAsState()
+
+    val inferenceSecs = inferenceTime / 1000f
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.fillMaxSize()
     ) {
         ColumnCenterLayout(if (isPlaying) 320.dp else 240.dp) {
-            ColumnCenterLayout(80.dp) {
+            ColumnCenterLayout(120.dp) {
                 Text("Denoising complete!", style = MaterialTheme.typography.headlineLarge)
                 Text(
-                    "Inference time: %.2f s".format(inferenceTime / 1000f),
+                    "Inference time: %.2f s".format(inferenceSecs),
                     style = MaterialTheme.typography.headlineSmall
+                )
+                Text(
+                    "(%.2f s of inference per second of input)".format(inferenceSecs / inputLength),
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
 

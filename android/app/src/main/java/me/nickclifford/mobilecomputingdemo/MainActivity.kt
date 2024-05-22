@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         viewModel.filesDir = filesDir
+        viewModel.outputDir = getExternalFilesDir(null)!!
 
         viewModel.startProfiling()
 

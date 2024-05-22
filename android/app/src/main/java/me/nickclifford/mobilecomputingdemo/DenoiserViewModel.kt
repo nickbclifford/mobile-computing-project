@@ -62,6 +62,11 @@ class DenoiserViewModel : ViewModel() {
     )
     private var track: AudioTrack? = null
 
+    private val _inputLength = MutableStateFlow(0f)
+    val inputLength = _inputLength.asStateFlow()
+    private val _outputLength = MutableStateFlow(0f)
+    val outputLength = _outputLength.asStateFlow()
+
     lateinit var filesDir: File
     lateinit var torchModel: Module
 
@@ -103,6 +108,7 @@ class DenoiserViewModel : ViewModel() {
     }
 
     fun stopRecording() {
+        tempfile?.copyTo(File(outputDir, "input.amr"), overwrite = true)
         stopTimer()
         recorder?.apply {
             stop()
@@ -149,6 +155,10 @@ class DenoiserViewModel : ViewModel() {
             "input: ${samples.size} samples @ 16 kHz = ${samples.size / 16000f} seconds"
         )
 
+        launch {
+            _inputLength.emit(samples.size / 16000f)
+        }
+
         val inputTensor = Tensor.fromBlob(samples, longArrayOf(1, samples.size.toLong()))
 
         val outputTensor: Tensor
@@ -162,7 +172,12 @@ class DenoiserViewModel : ViewModel() {
             LOG_TAG,
             "output: ${outputSamples.size} samples @ 16 kHz = ${outputSamples.size / 16000f} seconds"
         )
+        launch {
+            _outputLength.emit(outputSamples.size / 16000f)
+        }
         data = buildWavData(outputSamples)
+
+        File(outputDir, "denoised.wav").writeBytes(data)
 
         launch {
             _inferenceTime.emit(elapsed.inWholeMilliseconds)
