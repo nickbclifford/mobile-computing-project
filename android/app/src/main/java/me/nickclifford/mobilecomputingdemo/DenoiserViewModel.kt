@@ -90,20 +90,20 @@ class DenoiserViewModel : ViewModel() {
         launch { _denoisedReady.emit(false) }
 
         tempfile = File.createTempFile("recording", ".amr", filesDir)
-        val recorder = MediaRecorder().apply {
+        recorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.AMR_NB)
             setOutputFile(tempfile)
             setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
         }
         try {
-            recorder.prepare()
+            recorder?.prepare()
         } catch (e: IOException) {
             Log.e(LOG_TAG, "MediaRecorder.prepare() failed")
         }
 
         launch { _isRecording.emit(true) }
-        recorder.start()
+        recorder?.start()
         startTimer()
     }
 
@@ -168,10 +168,6 @@ class DenoiserViewModel : ViewModel() {
 
         val outputSamples = outputTensor.dataAsFloatArray
 
-        Log.d(
-            LOG_TAG,
-            "output: ${outputSamples.size} samples @ 16 kHz = ${outputSamples.size / 16000f} seconds"
-        )
         launch {
             _outputLength.emit(outputSamples.size / 16000f)
         }
