@@ -39,7 +39,7 @@ class DenoiserViewModel : ViewModel() {
     private val _inferenceTime = MutableStateFlow(0L)
     val inferenceTime = _inferenceTime.asStateFlow()
 
-    private val memMeasurements = mutableListOf<Measurement>()
+    private val memMeasurements = mutableListOf<MemoryUsage>()
 
     private var profiler: Job? = null
 
@@ -76,6 +76,8 @@ class DenoiserViewModel : ViewModel() {
     }
 
     fun startRecording() {
+        startProfiling()
+
         launch { _denoisedReady.emit(false) }
 
         recordedFile = File.createTempFile("recording", ".amr", filesDir)
@@ -174,7 +176,7 @@ class DenoiserViewModel : ViewModel() {
     fun startProfiling() {
         profiler = launch {
             while (true) {
-                memMeasurements.add(currentMemUsage())
+                memMeasurements.add(MemoryUsage.getCurrent())
                 delay(5)
             }
         }
@@ -183,11 +185,6 @@ class DenoiserViewModel : ViewModel() {
     fun stopProfiling() {
         profiler?.cancel()
 
-        File(outputDir, "memory.csv").outputStream().use { stream ->
-            stream.write("time,mem_usage\n".toByteArray())
-            for (measurement in memMeasurements) {
-                stream.write("${measurement.time},${measurement.mem}\n".toByteArray())
-            }
-        }
+        File(outputDir, "memory.csv").outputStream().use { MemoryUsage.dump(it, memMeasurements) }
     }
 }

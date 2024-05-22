@@ -51,8 +51,6 @@ class MainActivity : ComponentActivity() {
         viewModel.filesDir = filesDir
         viewModel.outputDir = getExternalFilesDir(null)!!
 
-        viewModel.startProfiling()
-
         // torch needs a system file, so copy it out of the bundled assets
         // TODO: should this be cached somewhere? it's probably fine for now
         val modelFile = File.createTempFile("demucs", ".ptl", filesDir)
