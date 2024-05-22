@@ -2,6 +2,7 @@
 DEMUCS model taken from facebookresearch/denoiser;; We need the exact class
 definition so we can easily load in pretrained models, if needed.
 """
+import torch
 from torch import hub, nn, Tensor
 from torch.nn import functional as F
 from torchaudio.functional import resample
@@ -107,7 +108,7 @@ class Demucs(nn.Module):
         # if rescale:
         #     rescale_module(self, reference=rescale)
 
-    def valid_length(self, length):
+    def valid_length(self, length: int):
         """
         Return the nearest valid length to use with the model so that
         there is no time steps left over in a convolutions, e.g. for all
@@ -138,7 +139,7 @@ class Demucs(nn.Module):
             std = mono.std(dim=-1, keepdim=True)
             mix = mix / (self.floor + std)
         else:
-            std = 1
+            std = torch.tensor([1])
         length = mix.shape[-1]
         x = mix
         x = F.pad(x, (0, self.valid_length(length) - length))

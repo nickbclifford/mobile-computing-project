@@ -1,9 +1,5 @@
 package me.nickclifford.mobilecomputingdemo
 
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioManager
-import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -37,29 +33,33 @@ class DenoiserViewModel : ViewModel() {
     private val _isRecording = MutableStateFlow(false)
     val isRecording = _isRecording.asStateFlow()
 
-    private val _isPlaying = MutableStateFlow(false)
-    val isPlaying = _isPlaying.asStateFlow()
-
     private val _denoisedReady = MutableStateFlow(false)
     val denoisedReady = _denoisedReady.asStateFlow()
 
     private val _inferenceTime = MutableStateFlow(0L)
     val inferenceTime = _inferenceTime.asStateFlow()
 
+    private val memMeasurements = mutableListOf<MemoryUsage>()
+
+    private var profiler: Job? = null
+
     private var timer: Job? = null
-    private var tempfile: File? = null
+    private var recordedFile: File? = null
     private var recorder: MediaRecorder? = null
 
-    private var data = byteArrayOf()
-    private val bufferSize = AudioTrack.getMinBufferSize(
-        16000,
-        AudioFormat.CHANNEL_OUT_MONO,
-        AudioFormat.ENCODING_PCM_16BIT
-    )
-    private var track: AudioTrack? = null
+    private var _recordedData = MutableStateFlow(byteArrayOf())
+    val recordedData = _recordedData.asStateFlow()
+
+    private var _denoisedData = MutableStateFlow(byteArrayOf())
+    val denoisedData = _denoisedData.asStateFlow()
+
+    private val _inputLength = MutableStateFlow(0f)
+    val inputLength = _inputLength.asStateFlow()
 
     lateinit var filesDir: File
     lateinit var torchModel: Module
+
+    lateinit var outputDir: File
 
     private fun startTimer() {
         timer = launch {
@@ -76,27 +76,30 @@ class DenoiserViewModel : ViewModel() {
     }
 
     fun startRecording() {
+        startProfiling()
+
         launch { _denoisedReady.emit(false) }
 
-        tempfile = File.createTempFile("recording", ".amr", filesDir)
-        val recorder = MediaRecorder().apply {
+        recordedFile = File.createTempFile("recording", ".amr", filesDir)
+        recorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.AMR_NB)
-            setOutputFile(tempfile)
+            setOutputFile(recordedFile)
             setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
         }
         try {
-            recorder.prepare()
+            recorder?.prepare()
         } catch (e: IOException) {
             Log.e(LOG_TAG, "MediaRecorder.prepare() failed")
         }
 
         launch { _isRecording.emit(true) }
-        recorder.start()
+        recorder?.start()
         startTimer()
     }
 
     fun stopRecording() {
+        recordedFile?.copyTo(File(outputDir, "input.amr"), overwrite = true)
         stopTimer()
         recorder?.apply {
             stop()
@@ -111,10 +114,10 @@ class DenoiserViewModel : ViewModel() {
 
         thread {
             val outputPath =
-                filesDir.path + File.separator + tempfile?.nameWithoutExtension + ".wav"
+                filesDir.path + File.separator + recordedFile?.nameWithoutExtension + ".wav"
 
             val session =
-                FFmpegKit.execute("-i ${tempfile?.path} -bitexact -acodec pcm_s16le -ac 1 -ar 16000 $outputPath")
+                FFmpegKit.execute("-i ${recordedFile?.path} -bitexact -acodec pcm_s16le -ac 1 -ar 16000 $outputPath")
 
             if (ReturnCode.isSuccess(session.returnCode)) {
                 denoise(File(outputPath))
@@ -136,12 +139,20 @@ class DenoiserViewModel : ViewModel() {
     private fun denoise(modelInput: File) {
         Log.i(LOG_TAG, "Beginning denoising of ${modelInput.name}")
 
+        launch {
+            _recordedData.emit(modelInput.readBytes())
+        }
+
         val samples = parseWavFile(modelInput)
 
         Log.d(
             LOG_TAG,
             "input: ${samples.size} samples @ 16 kHz = ${samples.size / 16000f} seconds"
         )
+
+        launch {
+            _inputLength.emit(samples.size / 16000f)
+        }
 
         val inputTensor = Tensor.fromBlob(samples, longArrayOf(1, samples.size.toLong()))
 
@@ -151,56 +162,29 @@ class DenoiserViewModel : ViewModel() {
         }
 
         val outputSamples = outputTensor.dataAsFloatArray
+        val outputData = buildWavData(outputSamples)
 
-        Log.d(
-            LOG_TAG,
-            "output: ${outputSamples.size} samples @ 16 kHz = ${outputSamples.size / 16000f} seconds"
-        )
-        data = buildWavData(outputSamples)
+        File(outputDir, "denoised.wav").writeBytes(outputData)
 
         launch {
+            _denoisedData.emit(outputData)
             _inferenceTime.emit(elapsed.inWholeMilliseconds)
             _denoisedReady.emit(true)
         }
     }
 
-    fun startPlaying() {
-        track = AudioTrack(
-            AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build(),
-            AudioFormat.Builder().setSampleRate(16000).setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build(),
-            bufferSize,
-            AudioTrack.MODE_STREAM,
-            AudioManager.AUDIO_SESSION_ID_GENERATE
-        )
-
-        launch { _isPlaying.emit(true) }
-        track?.play()
-        startTimer()
-
-        thread {
-            val chunkSize = bufferSize
-            var offset = 0
-
-            while (offset < data.size) {
-                val size = Math.min(chunkSize, data.size - offset)
-                track?.write(data, offset, size)
-                offset += size
+    fun startProfiling() {
+        profiler = launch {
+            while (true) {
+                memMeasurements.add(MemoryUsage.getCurrent())
+                delay(5)
             }
-
-            stopPlaying()
         }
     }
 
-    fun stopPlaying() {
-        stopTimer()
-        track?.apply {
-            stop()
-            release()
-        }
-        track = null
+    fun stopProfiling() {
+        profiler?.cancel()
 
-        launch { _isPlaying.emit(false) }
+        File(outputDir, "memory.csv").outputStream().use { MemoryUsage.dump(it, memMeasurements) }
     }
 }
