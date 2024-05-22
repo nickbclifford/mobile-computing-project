@@ -1,5 +1,6 @@
 package me.nickclifford.mobilecomputingdemo
 
+import android.content.res.AssetManager
 import android.media.MediaRecorder
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.pytorch.IValue
+import org.pytorch.LiteModuleLoader
 import org.pytorch.Module
 import org.pytorch.Tensor
 import java.io.File
@@ -27,6 +29,9 @@ fun ViewModel.launch(block: suspend () -> Unit): Job {
 }
 
 class DenoiserViewModel : ViewModel() {
+    private val _currentModel = MutableStateFlow(Model.STATIC_AND_DYNAMIC)
+    val currentModel = _currentModel.asStateFlow()
+
     private val _elapsedTime = MutableStateFlow(0L)
     val elapsedTime = _elapsedTime.asStateFlow()
 
@@ -57,9 +62,34 @@ class DenoiserViewModel : ViewModel() {
     val inputLength = _inputLength.asStateFlow()
 
     lateinit var filesDir: File
-    lateinit var torchModel: Module
+    private var torchModel: Module? = null
 
     lateinit var outputDir: File
+
+    lateinit var assets: AssetManager
+
+    private fun loadModel() {
+        if (torchModel == null) {
+            val model = _currentModel.value
+            val key = model.name.lowercase()
+            Log.d(LOG_TAG, "Loading model $key from assets into memory")
+            val modelFile = File.createTempFile(key, ".ptl", filesDir)
+            modelFile.outputStream().use { temp ->
+                model.loadAsset(assets).use { asset ->
+                    asset.copyTo(temp)
+                }
+            }
+            torchModel = LiteModuleLoader.load(modelFile.path)
+        }
+    }
+
+    fun setModel(model: Model) {
+        launch {
+            _currentModel.emit(model)
+            torchModel = null
+            loadModel()
+        }
+    }
 
     private fun startTimer() {
         timer = launch {
@@ -139,6 +169,8 @@ class DenoiserViewModel : ViewModel() {
     private fun denoise(modelInput: File) {
         Log.i(LOG_TAG, "Beginning denoising of ${modelInput.name}")
 
+        loadModel()
+
         launch {
             _recordedData.emit(modelInput.readBytes())
         }
@@ -158,7 +190,7 @@ class DenoiserViewModel : ViewModel() {
 
         val outputTensor: Tensor
         val elapsed = measureTime {
-            outputTensor = torchModel.forward(IValue.from(inputTensor)).toTensor()
+            outputTensor = torchModel!!.forward(IValue.from(inputTensor)).toTensor()
         }
 
         val outputSamples = outputTensor.dataAsFloatArray
@@ -173,7 +205,7 @@ class DenoiserViewModel : ViewModel() {
         }
     }
 
-    fun startProfiling() {
+    private fun startProfiling() {
         profiler = launch {
             while (true) {
                 memMeasurements.add(MemoryUsage.getCurrent())

@@ -2,6 +2,7 @@ package me.nickclifford.mobilecomputingdemo
 
 import android.Manifest.permission.RECORD_AUDIO
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -27,6 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
@@ -50,19 +56,11 @@ class MainActivity : ComponentActivity() {
 
         viewModel.filesDir = filesDir
         viewModel.outputDir = getExternalFilesDir(null)!!
-
-        // torch needs a system file, so copy it out of the bundled assets
-        // TODO: should this be cached somewhere? it's probably fine for now
-        val modelFile = File.createTempFile("demucs", ".ptl", filesDir)
-        modelFile.outputStream().use { temp ->
-            assets.open("demucs.ptl").use { asset ->
-                asset.copyTo(temp)
-            }
-        }
-        viewModel.torchModel = LiteModuleLoader.load(modelFile.path)
+        viewModel.assets = assets
 
         setContent {
             val navController = rememberNavController()
+            var showSettings by remember { mutableStateOf(false) }
 
             LaunchedEffect(Unit) {
                 viewModel.denoisedReady.collect { ready ->
@@ -75,7 +73,12 @@ class MainActivity : ComponentActivity() {
 
             MobileComputingDemoTheme {
                 Scaffold(
-                    topBar = { TopBar() },
+                    topBar = {
+                        TopBar(onClickSettings = {
+                            Log.d("MainActivity", "show settings")
+                            showSettings = !showSettings
+                        })
+                    },
                     bottomBar = { BottomNav(navController, viewModel) },
                     modifier = Modifier.fillMaxSize()
                 ) { pad ->
@@ -95,6 +98,10 @@ class MainActivity : ComponentActivity() {
                             composable("results") { ResultsPage(viewModel) }
                         }
                     }
+                }
+
+                if (showSettings) {
+                    SettingsDialog(viewModel, close = { showSettings = false })
                 }
             }
         }
@@ -130,11 +137,22 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TopBar() {
-    TopAppBar(colors = TopAppBarDefaults.topAppBarColors(
-        containerColor = MaterialTheme.colorScheme.primaryContainer,
-        titleContentColor = MaterialTheme.colorScheme.primary,
-    ), title = { Text("Soundscape Savior") })
+fun TopBar(onClickSettings: () -> Unit) {
+    TopAppBar(
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.primary,
+        ),
+        title = { Text("Soundscape Savior") },
+        actions = {
+            FilledIconButton(onClick = onClickSettings) {
+                Icon(
+                    Icons.Filled.Tune,
+                    contentDescription = "Settings"
+                )
+            }
+        }
+    )
 }
 
 // contents taken from https://developer.android.com/develop/ui/compose/navigation#bottom-nav
